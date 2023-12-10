@@ -51,6 +51,7 @@ void RobotControlNode::initMoveGroup() {
     // move();
     
     // move2();
+    move(target_pose);
 }
 
 void RobotControlNode::mainLoop() {

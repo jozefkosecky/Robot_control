@@ -9,7 +9,7 @@ int main(int argc, char * argv[])
     rclcpp::init(argc, argv);
     auto robot_control_node = std::make_shared<RobotControlNode>();
     // Set use_sim_time to true
-    robot_control_node->set_parameter(rclcpp::Parameter("use_sim_time", true));
+    // robot_control_node->set_parameter(rclcpp::Parameter("use_sim_time", true));
 
     // robot_control_node->createStone();
     robot_control_node->initMoveGroup();
@@ -26,6 +26,7 @@ int main(int argc, char * argv[])
         rate.sleep();
     }
 
+    robot_control_node->move_group_interface->stop();
     rclcpp::spin(robot_control_node);
     rclcpp::shutdown();
     return 0;

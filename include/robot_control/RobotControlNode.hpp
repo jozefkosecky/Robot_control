@@ -35,6 +35,7 @@ public:
     void createStone();
     geometry_msgs::msg::Pose getPose();
     std::pair<bool, double> checkPosition(const geometry_msgs::msg::Pose& current_local_pos, const geometry_msgs::msg::Pose& target_position);
+    std::shared_ptr<moveit::planning_interface::MoveGroupInterface> move_group_interface;
     
 
 
@@ -45,7 +46,7 @@ private:
     
     //Var Moveit
     const std::string PLANNING_GROUP = "ur_manipulator";
-    std::shared_ptr<moveit::planning_interface::MoveGroupInterface> move_group_interface;
+    
 
     // publisher
     rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr chessBoardPub;
@@ -57,7 +58,7 @@ private:
     std::vector<geometry_msgs::msg::Pose> pose_list;
     geometry_msgs::msg::Pose tool0_pose;
     geometry_msgs::msg::Pose target_pose;
-    int target_pose_index = -1;
+    int target_pose_index = 0;
 };
 
 

@@ -8,30 +8,31 @@ RobotControlNode::RobotControlNode() : Node("robot_control_node") {
     // publisher
     chessBoardPub = this->create_publisher<visualization_msgs::msg::MarkerArray>("visualization_marker_array", 10);
     std::this_thread::sleep_for(std::chrono::seconds(1));
-    publishCheckerboard();
+    
 
     geometry_msgs::msg::Pose target_pose1;
     // target_pose1.orientation.x = 0.5;
     // target_pose1.orientation.y = 0.5;
     // target_pose1.orientation.z = -0.5;
     // target_pose1.orientation.w = 0.5;
-    target_pose1.orientation.w = -0.021076412871479988;
-    target_pose1.orientation.x = 0.9997775554656982;
-    target_pose1.orientation.y = 4.4367559894453734e-05;
-    target_pose1.orientation.z = -0.0007643926655873656;
-    target_pose1.position.x = 0.49955984950065613;
-    target_pose1.position.y = 0.4997904896736145;
-    target_pose1.position.z = 0.2755698561668396;
+
+    target_pose1.orientation.w = 0.0;
+    target_pose1.orientation.x = 1.0;
+    target_pose1.orientation.y = 0.0; //-5.563795639318414e-06
+    target_pose1.orientation.z = 0.0; //-0.000838900392409414
+    target_pose1.position.x = 0.4765383303165436;
+    target_pose1.position.y = -0.16665436327457428;
+    target_pose1.position.z = 0.04123930260539055;
 
     // Second Pose
     geometry_msgs::msg::Pose target_pose2;
-    target_pose2.orientation.w = 0.7071065306663513;
-    target_pose2.orientation.x = -0.7071065306663513;
-    target_pose2.orientation.y = 0.000602511630859226;
-    target_pose2.orientation.z = 0.0005928321625106037;
-    target_pose2.position.x = 0.0008382517262361944;
-    target_pose2.position.y = 0.2328999638557434;
-    target_pose2.position.z = 1.079399585723877;
+    target_pose2.orientation.x = 0.0;
+    target_pose2.orientation.y = 1.0;
+    target_pose2.orientation.z = 0.0;
+    target_pose2.orientation.w = 0.0;
+    target_pose2.position.x = 0.4765383303165436;
+    target_pose2.position.y = -0.16665436327457428 + (0.047*7);
+    target_pose2.position.z = 0.04123930260539055;
 
     pose_list.push_back(target_pose1);
     pose_list.push_back(target_pose2);
@@ -41,8 +42,10 @@ RobotControlNode::RobotControlNode() : Node("robot_control_node") {
 void RobotControlNode::initMoveGroup() {
     using moveit::planning_interface::MoveGroupInterface;
     move_group_interface = std::make_shared<moveit::planning_interface::MoveGroupInterface>(shared_from_this(), "ur_manipulator");
+    // move_group_interface->setEndEffectorLink("tool0");
     move_group_interface->startStateMonitor();
 
+    publishCheckerboard();
     createStone();
     // move();
     // attachStone();
@@ -50,7 +53,7 @@ void RobotControlNode::initMoveGroup() {
     // detachStone();
     // move();
     
-    // move2();
+
     move(target_pose);
 }
 
@@ -62,6 +65,7 @@ void RobotControlNode::mainLoop() {
     // double distance = result.second;
 
     if(isCloseEnough == false) {
+        // move(target_pose);
         return;
     }
 
@@ -83,7 +87,7 @@ void RobotControlNode::mainLoop() {
 }
 
 std::pair<bool, double> RobotControlNode::checkPosition(const geometry_msgs::msg::Pose& current_local_pos, const geometry_msgs::msg::Pose& target_position) {
-    double threshold = 0.02;
+    double threshold = 0.05;
 
     double current_x = current_local_pos.position.x;
     double current_y = current_local_pos.position.y;
@@ -149,7 +153,7 @@ void RobotControlNode::move2() {
     // Set a target Pose
     geometry_msgs::msg::Pose target_pose;
     target_pose.orientation.w = -0.021076412871479988;
-    target_pose.orientation.x = 0.9997775554656982;
+    target_pose.orientation.x = 1.0;
     target_pose.orientation.y = 4.4367559894453734e-05;
     target_pose.orientation.z = -0.0007643926655873656;
     target_pose.position.x = 0.49955984950065613;
@@ -174,6 +178,11 @@ void RobotControlNode::createStone() {
     collision_object.id = "box1";
     shape_msgs::msg::SolidPrimitive primitive;
 
+
+    float square_size = 0.047;  // Size of each square
+    float offsetX = 0.475;
+    float offsetY = -(square_size * 4)+ (square_size / 2);
+
     // Define the size of the box in meters
     primitive.type = primitive.BOX;
     primitive.dimensions.resize(3);
@@ -184,9 +193,9 @@ void RobotControlNode::createStone() {
     // Define the pose of the box (relative to the frame_id)
     geometry_msgs::msg::Pose box_pose;
     box_pose.orientation.w = 1.0;
-    box_pose.position.x = 0.5;
-    box_pose.position.y = 0.5;
-    box_pose.position.z = 0.25;
+    box_pose.position.x = offsetX;
+    box_pose.position.y = offsetY;
+    box_pose.position.z = 0.02;
 
     collision_object.primitives.push_back(primitive);
     collision_object.primitive_poses.push_back(box_pose);
@@ -210,7 +219,9 @@ void RobotControlNode::publishCheckerboard()
     visualization_msgs::msg::MarkerArray marker_array;
         int rows = 8;
         int cols = 8;
-        float square_size = 0.1;  // Size of each square
+        float square_size = 0.047;  // Size of each square
+        float offsetX = 0.475;
+        float offsetY = -(square_size * 4)+ (square_size / 2);
 
         // Create the checkerboard squares and pieces
         for (int row = 0; row < rows; ++row)
@@ -219,12 +230,12 @@ void RobotControlNode::publishCheckerboard()
             {
                 // Add square
                 visualization_msgs::msg::Marker square_marker;
-                square_marker.header.frame_id = "world";
+                square_marker.header.frame_id = move_group_interface->getPlanningFrame();
                 square_marker.type = visualization_msgs::msg::Marker::CUBE;
                 square_marker.action = visualization_msgs::msg::Marker::ADD;
 
-                square_marker.pose.position.x = row * square_size;
-                square_marker.pose.position.y = col * square_size;
+                square_marker.pose.position.x = (row * square_size) + offsetX;
+                square_marker.pose.position.y = (col * square_size) + offsetY;
                 square_marker.pose.position.z = 0.0;
                 square_marker.pose.orientation.w = 1.0;
 

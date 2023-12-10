@@ -7,12 +7,18 @@ endif()
 
 # find dependencies
 find_package(ament_cmake REQUIRED)
+find_package(moveit_core REQUIRED)
 find_package(moveit_ros_planning_interface REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(visualization_msgs REQUIRED)
 find_package(rviz2 REQUIRED)
 find_package(robot_state_publisher REQUIRED)
+find_package(geometry_msgs REQUIRED)
+find_package(tf2 REQUIRED)
+find_package(tf2_ros REQUIRED)
+find_package(tf2_eigen REQUIRED)
+find_package(tf2_geometry_msgs REQUIRED)
 
 # Include C++ headers
 include_directories(include)
@@ -20,7 +26,18 @@ include_directories(include)
 # Declare a C++ executable
 add_executable(robot_control_node src/RobotControlMain.cpp src/RobotControlNode.cpp)
 # Specify libraries to link a library or executable target against
-ament_target_dependencies(robot_control_node moveit_ros_planning_interface rclcpp visualization_msgs)
+ament_target_dependencies(robot_control_node 
+  moveit_core
+  moveit_ros_planning_interface 
+  rclcpp 
+  visualization_msgs 
+  geometry_msgs 
+  tf2
+  tf2_ros
+  tf2_eigen
+  tf2_geometry_msgs
+)
+
 
 add_executable(another_node src/robot_control.cpp)
 ament_target_dependencies(another_node moveit_ros_planning_interface rclcpp)

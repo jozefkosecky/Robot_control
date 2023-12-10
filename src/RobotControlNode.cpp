@@ -25,13 +25,13 @@ RobotControlNode::RobotControlNode() : Node("robot_control_node") {
 
     // Second Pose
     geometry_msgs::msg::Pose target_pose2;
-    target_pose2.orientation.w = -0.021076412871479988;
-    target_pose2.orientation.x = 0.9997775554656982;
-    target_pose2.orientation.y = 4.4367559894453734e-05;
-    target_pose2.orientation.z = -0.0007643926655873656;
-    target_pose2.position.x = 0.49955984950065613;
-    target_pose2.position.y = 0.4997904896736145;
-    target_pose2.position.z = 0.5055698561668396;
+    target_pose2.orientation.w = 0.7071065306663513;
+    target_pose2.orientation.x = -0.7071065306663513;
+    target_pose2.orientation.y = 0.000602511630859226;
+    target_pose2.orientation.z = 0.0005928321625106037;
+    target_pose2.position.x = 0.0008382517262361944;
+    target_pose2.position.y = 0.2328999638557434;
+    target_pose2.position.z = 1.079399585723877;
 
     pose_list.push_back(target_pose1);
     pose_list.push_back(target_pose2);
@@ -43,7 +43,7 @@ void RobotControlNode::initMoveGroup() {
     move_group_interface = std::make_shared<moveit::planning_interface::MoveGroupInterface>(shared_from_this(), "ur_manipulator");
     move_group_interface->startStateMonitor();
 
-    // createStone();
+    createStone();
     // move();
     // attachStone();
     // move2();
@@ -65,10 +65,18 @@ void RobotControlNode::mainLoop() {
         return;
     }
 
+    if(target_pose_index == 0) {
+        attachStone();
+    }
+    else {
+        detachStone();
+    }
+
     target_pose_index++;
     if(target_pose_index == 2) {
         target_pose_index = 0;
     }
+ 
     target_pose = pose_list[target_pose_index];
     move(target_pose);
 

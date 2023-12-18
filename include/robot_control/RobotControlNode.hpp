@@ -45,6 +45,7 @@ public:
     std::tuple<float, float, float> getColorFromName(const std::string& colorName);
     void removePiece();
     void removeAllFakePieces();
+    void removeFakePiece(const std::string& object_id);
     int convertStringToInt(const std::string& stringID);
 
 

@@ -157,19 +157,7 @@ void RobotControlNode::move(geometry_msgs::msg::Pose targetPose) {
 
 void RobotControlNode::checkers_board_callback(const checkers_msgs::msg::Board::SharedPtr msg)
 {
-    
-    // for (const auto& element : piecesInRviz) {
-    //     std::string objectID= element.first;
-    //     bool isOnTheBoard = element.second;
-
-    //     if(isOnTheBoard) {
-    //         removeObjectById(objectID);
-    //     }
-    //     // Do something with theString and theBool
-    // }
-
     removeAllFakePieces();
-
 
     for (const auto& piece : msg->pieces) {
         int row = piece.row;
@@ -184,6 +172,8 @@ void RobotControlNode::checkers_board_callback(const checkers_msgs::msg::Board::
 
     chessBoardPub->publish(marker_array_fake_pieces);
 
+    // removeFakePiece("piece01");
+    
     if(startProgram) {
         // move(target_pose);
         startProgram = false;
@@ -202,38 +192,6 @@ std::tuple<float, float, float> RobotControlNode::getColorFromName(const std::st
 }
 
 
-
-void RobotControlNode::createPiece(int row, int col) {
-    collision_object.header.frame_id = move_group_interface->getPlanningFrame();
-    collision_object.id = "collisionObjectID";
-    shape_msgs::msg::SolidPrimitive primitive;
-
-
-    float posX = (row * square_size) + boardOffsetX;
-    float posY = (col * square_size) + boardOffsetY;
-
-    // Define the size of the box in meters
-    primitive.type = primitive.CYLINDER;
-    primitive.dimensions.resize(2);
-    primitive.dimensions[primitive.CYLINDER_HEIGHT] = 0.005; // Height of the cylinder
-    primitive.dimensions[primitive.CYLINDER_RADIUS] = 0.028/2; // Radius of the cylinder
-
-    // Define the pose of the box (relative to the frame_id)
-    geometry_msgs::msg::Pose cylinder_pose;
-    cylinder_pose.orientation.w = 1.0;
-    cylinder_pose.position.x = posX;
-    cylinder_pose.position.y = posY;
-    cylinder_pose.position.z = 0.0075;
-
-    collision_object.primitives.push_back(primitive);
-    collision_object.primitive_poses.push_back(cylinder_pose);
-    collision_object.operation = collision_object.ADD;
-    
-
-    // Add the collision object to the scene
-    moveit::planning_interface::PlanningSceneInterface planning_scene_interface;
-    planning_scene_interface.applyCollisionObject(collision_object);
-}
 
 void RobotControlNode::createFakePieceWithColor(const std::string& object_id, int row, int col, const std::string& colorName) {
     int objectIDLong = convertStringToInt(object_id);
@@ -294,6 +252,81 @@ void RobotControlNode::removeAllFakePieces() {
     marker_array_fake_pieces.markers.clear();
 }
 
+void RobotControlNode::removeFakePiece(const std::string& object_id) {
+    int objectIDLong = convertStringToInt(object_id);
+    // visualization_msgs::msg::MarkerArray marker_array;
+
+    // visualization_msgs::msg::Marker removePiece;
+    // removePiece.header.frame_id = move_group_interface->getPlanningFrame();
+    // removePiece.id = objectIDLong;
+    // removePiece.action = visualization_msgs::msg::Marker::DELETE;
+
+    // marker_array.markers.push_back(removePiece);
+
+    // chessBoardPub->publish(marker_array);
+
+    // visualization_msgs::msg::Marker marker_for_delete;
+    // for (auto& marker : marker_array_fake_pieces.markers) {
+    //     int markerID = marker.id;
+    //     if(objectIDLong == markerID){
+    //         marker.action = visualization_msgs::msg::Marker::DELETE;
+    //         marker_for_delete = marker;
+    //         break;
+    //     }
+    // }
+
+
+    visualization_msgs::msg::MarkerArray updated_marker_array;
+
+    for (auto& marker : marker_array_fake_pieces.markers) {
+        if (marker.id != objectIDLong) {  // Keep all markers except the one to remove
+            updated_marker_array.markers.push_back(marker);
+        }
+        else {
+            marker.action = visualization_msgs::msg::Marker::DELETE;
+            if (piecesInRviz.find(objectIDLong) != piecesInRviz.end()) {
+                piecesInRviz.erase(objectIDLong);
+            }
+        }
+    }
+
+    chessBoardPub->publish(marker_array_fake_pieces);
+
+    marker_array_fake_pieces = updated_marker_array;
+}
+
+void RobotControlNode::createPiece(int row, int col) {
+    collision_object.header.frame_id = move_group_interface->getPlanningFrame();
+    collision_object.id = "collisionObjectID";
+    shape_msgs::msg::SolidPrimitive primitive;
+
+
+    float posX = (row * square_size) + boardOffsetX;
+    float posY = (col * square_size) + boardOffsetY;
+
+    // Define the size of the box in meters
+    primitive.type = primitive.CYLINDER;
+    primitive.dimensions.resize(2);
+    primitive.dimensions[primitive.CYLINDER_HEIGHT] = 0.005; // Height of the cylinder
+    primitive.dimensions[primitive.CYLINDER_RADIUS] = 0.028/2; // Radius of the cylinder
+
+    // Define the pose of the box (relative to the frame_id)
+    geometry_msgs::msg::Pose cylinder_pose;
+    cylinder_pose.orientation.w = 1.0;
+    cylinder_pose.position.x = posX;
+    cylinder_pose.position.y = posY;
+    cylinder_pose.position.z = 0.0075;
+
+    collision_object.primitives.push_back(primitive);
+    collision_object.primitive_poses.push_back(cylinder_pose);
+    collision_object.operation = collision_object.ADD;
+    
+
+    // Add the collision object to the scene
+    moveit::planning_interface::PlanningSceneInterface planning_scene_interface;
+    planning_scene_interface.applyCollisionObject(collision_object);
+}
+
 void RobotControlNode::removePiece() {
     collision_object.operation = collision_object.REMOVE;
 
@@ -308,6 +341,8 @@ void RobotControlNode::attachPiece() {
 void RobotControlNode::detachPiece() {
     move_group_interface->detachObject(collision_object.id); 
 }
+
+
 
 void RobotControlNode::publishCheckerboard()
 {

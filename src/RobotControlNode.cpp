@@ -7,8 +7,17 @@ RobotControlNode::RobotControlNode() : Node("robot_control_node") {
 
     // publisher
     chessBoardPub = this->create_publisher<visualization_msgs::msg::MarkerArray>("visualization_marker_array", 10);
+
+    // subcriber
+    checkersBoardSub = this->create_subscription<checkers_msgs::msg::Board>(
+        "board_topic", 10, std::bind(&RobotControlNode::checkers_board_callback, this, std::placeholders::_1));
+
     std::this_thread::sleep_for(std::chrono::seconds(1));
     
+
+    square_size = 0.047;  // Size of each square
+    boardOffsetX = 0.475;
+    boardOffsetY = -(square_size * 4)+ (square_size / 2);
 
     geometry_msgs::msg::Pose target_pose1;
     // target_pose1.orientation.x = 0.5;
@@ -31,12 +40,15 @@ RobotControlNode::RobotControlNode() : Node("robot_control_node") {
     target_pose2.orientation.z = 0.0;
     target_pose2.orientation.w = 0.0;
     target_pose2.position.x = 0.4765383303165436;
-    target_pose2.position.y = -0.16665436327457428 + (0.047*7);
+    target_pose2.position.y = -0.16665436327457428 + (square_size*7);
     target_pose2.position.z = 0.04123930260539055;
 
     pose_list.push_back(target_pose1);
     pose_list.push_back(target_pose2);
     target_pose = pose_list[target_pose_index];
+
+
+    
 }
 
 void RobotControlNode::initMoveGroup() {
@@ -46,15 +58,8 @@ void RobotControlNode::initMoveGroup() {
     move_group_interface->startStateMonitor();
 
     publishCheckerboard();
-    createStone();
-    // move();
-    // attachStone();
-    // move2();
-    // detachStone();
-    // move();
     
-
-    move(target_pose);
+    // move(target_pose);
 }
 
 void RobotControlNode::mainLoop() {
@@ -85,6 +90,7 @@ void RobotControlNode::mainLoop() {
     move(target_pose);
 
 }
+
 
 std::pair<bool, double> RobotControlNode::checkPosition(const geometry_msgs::msg::Pose& current_local_pos, const geometry_msgs::msg::Pose& target_position) {
     double threshold = 0.05;
@@ -149,68 +155,112 @@ void RobotControlNode::move(geometry_msgs::msg::Pose targetPose) {
     }
 }
 
-void RobotControlNode::move2() {
-    // Set a target Pose
-    geometry_msgs::msg::Pose target_pose;
-    target_pose.orientation.w = -0.021076412871479988;
-    target_pose.orientation.x = 1.0;
-    target_pose.orientation.y = 4.4367559894453734e-05;
-    target_pose.orientation.z = -0.0007643926655873656;
-    target_pose.position.x = 0.49955984950065613;
-    target_pose.position.y = 0.4997904896736145;
-    target_pose.position.z = 0.4555698561668396;
-    move_group_interface->setPoseTarget(target_pose);
+void RobotControlNode::checkers_board_callback(const checkers_msgs::msg::Board::SharedPtr msg)
+{
+    for (const auto& element : piecesInRviz) {
+        std::string objectID= element.first;
+        bool isOnTheBoard = element.second;
 
-    // Create a plan to that target pose
-    moveit::planning_interface::MoveGroupInterface::Plan plan;
-    bool success = static_cast<bool>(move_group_interface->plan(plan));
+        if(isOnTheBoard) {
+            removeObjectById(objectID);
+        }
+        // Do something with theString and theBool
+    }
 
-    // Execute the plan
-    if (success) {
-        move_group_interface->execute(plan);
-    } else {
-        RCLCPP_ERROR(this->get_logger(), "Planning failed!");
+    for (const auto& piece : msg->pieces) {
+        int row = piece.row;
+        int col = piece.col;
+        std::string color = piece.color;
+        // bool isKing = piece.king;
+
+        std::string pieceID = "piece" + std::to_string(row) + std::to_string(col);
+        
+        createPiece(pieceID, row, col, color);
+    }
+
+    if(startProgram) {
+        // move(target_pose);
+        startProgram = false;
     }
 }
 
-void RobotControlNode::createStone() {
+std::tuple<float, float, float> RobotControlNode::getColorFromName(const std::string& colorName) {
+    if (colorName == "white") {
+        return std::make_tuple(1.0f, 1.0f, 1.0f); // RGB for white
+    } else if (colorName == "red") {
+        return std::make_tuple(1.0f, 0.0f, 0.0f); // RGB for red
+    }
+
+    // Default color (black) if no match is found
+    return std::make_tuple(0.0f, 0.0f, 0.0f);
+}
+
+void RobotControlNode::createPiece(const std::string& object_id, int row, int col, const std::string& colorName) {
+    piecesInRviz.push_back(std::make_pair(object_id, true));
+
+    std::tuple<float, float, float> color = getColorFromName(colorName);
+
+    moveit_msgs::msg::CollisionObject collision_object;
     collision_object.header.frame_id = move_group_interface->getPlanningFrame();
-    collision_object.id = "box1";
+    collision_object.id = object_id;
     shape_msgs::msg::SolidPrimitive primitive;
 
 
-    float square_size = 0.047;  // Size of each square
-    float offsetX = 0.475;
-    float offsetY = -(square_size * 4)+ (square_size / 2);
+    float posX = (row * square_size) + boardOffsetX;
+    float posY = (col * square_size) + boardOffsetY;
 
     // Define the size of the box in meters
-    primitive.type = primitive.BOX;
-    primitive.dimensions.resize(3);
-    primitive.dimensions[primitive.BOX_X] = 0.03;
-    primitive.dimensions[primitive.BOX_Y] = 0.03;
-    primitive.dimensions[primitive.BOX_Z] = 0.03;
+    primitive.type = primitive.CYLINDER;
+    primitive.dimensions.resize(2);
+    primitive.dimensions[primitive.CYLINDER_HEIGHT] = 0.005; // Height of the cylinder
+    primitive.dimensions[primitive.CYLINDER_RADIUS] = 0.028/2; // Radius of the cylinder
 
     // Define the pose of the box (relative to the frame_id)
-    geometry_msgs::msg::Pose box_pose;
-    box_pose.orientation.w = 1.0;
-    box_pose.position.x = offsetX;
-    box_pose.position.y = offsetY;
-    box_pose.position.z = 0.02;
+    geometry_msgs::msg::Pose cylinder_pose;
+    cylinder_pose.orientation.w = 1.0;
+    cylinder_pose.position.x = posX;
+    cylinder_pose.position.y = posY;
+    cylinder_pose.position.z = 0.0075;
 
     collision_object.primitives.push_back(primitive);
-    collision_object.primitive_poses.push_back(box_pose);
+    collision_object.primitive_poses.push_back(cylinder_pose);
     collision_object.operation = collision_object.ADD;
+    
+
+    // Set the color for the object (this part is optional and depends on your RViz setup)
+    moveit_msgs::msg::ObjectColor object_color;
+    object_color.id = object_id;
+    object_color.color.r = std::get<0>(color);
+    object_color.color.g = std::get<1>(color);
+    object_color.color.b = std::get<2>(color);
+    object_color.color.a = 1.0; // Alpha value for opacity (1.0 is fully opaque)
 
     // Add the collision object to the scene
     moveit::planning_interface::PlanningSceneInterface planning_scene_interface;
     planning_scene_interface.applyCollisionObject(collision_object);
 }
 
+void RobotControlNode::removeObjectById(const std::string& object_id) {
+    moveit_msgs::msg::CollisionObject remove_object;
+    remove_object.id = object_id;
+    remove_object.header.frame_id = move_group_interface->getPlanningFrame();
+    remove_object.operation = remove_object.REMOVE;
+
+    moveit::planning_interface::PlanningSceneInterface planning_scene_interface;
+    planning_scene_interface.applyCollisionObject(remove_object);
+}
+
 void RobotControlNode::attachStone() {
+    moveit_msgs::msg::CollisionObject collision_object;
+    collision_object.header.frame_id = move_group_interface->getPlanningFrame();
+    collision_object.id = "piece01";
     move_group_interface->attachObject(collision_object.id, "tool0"); 
 }
 
 void RobotControlNode::detachStone() {
+    moveit_msgs::msg::CollisionObject collision_object;
+    collision_object.header.frame_id = move_group_interface->getPlanningFrame();
+    collision_object.id = "piece01";
     move_group_interface->detachObject(collision_object.id); 
 }
 
@@ -219,9 +269,7 @@ void RobotControlNode::publishCheckerboard()
     visualization_msgs::msg::MarkerArray marker_array;
         int rows = 8;
         int cols = 8;
-        float square_size = 0.047;  // Size of each square
-        float offsetX = 0.475;
-        float offsetY = -(square_size * 4)+ (square_size / 2);
+        
 
         // Create the checkerboard squares and pieces
         for (int row = 0; row < rows; ++row)
@@ -234,8 +282,8 @@ void RobotControlNode::publishCheckerboard()
                 square_marker.type = visualization_msgs::msg::Marker::CUBE;
                 square_marker.action = visualization_msgs::msg::Marker::ADD;
 
-                square_marker.pose.position.x = (row * square_size) + offsetX;
-                square_marker.pose.position.y = (col * square_size) + offsetY;
+                square_marker.pose.position.x = (row * square_size) + boardOffsetX;
+                square_marker.pose.position.y = (col * square_size) + boardOffsetY;
                 square_marker.pose.position.z = 0.0;
                 square_marker.pose.orientation.w = 1.0;
 

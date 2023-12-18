@@ -19,6 +19,9 @@ find_package(tf2 REQUIRED)
 find_package(tf2_ros REQUIRED)
 find_package(tf2_eigen REQUIRED)
 find_package(tf2_geometry_msgs REQUIRED)
+find_package(checkers_msgs REQUIRED)
+find_package(moveit_visual_tools REQUIRED)
+find_package(rviz_visual_tools REQUIRED)
 
 # Include C++ headers
 include_directories(include)
@@ -36,6 +39,9 @@ ament_target_dependencies(robot_control_node
   tf2_ros
   tf2_eigen
   tf2_geometry_msgs
+  checkers_msgs
+  moveit_visual_tools
+  rviz_visual_tools
 )
 
 

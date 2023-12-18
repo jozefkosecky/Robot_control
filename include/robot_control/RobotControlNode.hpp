@@ -16,8 +16,17 @@
 #include <iostream>
 #include <cmath>
 #include <utility>
+#include <string>
 #include <tf2_eigen/tf2_eigen.hpp>  // For Eigen conversions
 #include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>  // For geometry_msgs conversions
+#include "checkers_msgs/msg/board.hpp" 
+#include "checkers_msgs/msg/piece.hpp" 
+#include <shape_msgs/msg/solid_primitive.hpp>
+#include <moveit_msgs/msg/object_color.hpp>
+#include <moveit_visual_tools/moveit_visual_tools.h>
+#include <rviz_visual_tools/rviz_visual_tools.hpp>
+#include <std_msgs/msg/color_rgba.hpp>
+
 
 class RobotControlNode : public rclcpp::Node
 {
@@ -29,10 +38,14 @@ public:
     void mainLoop();
     void initMoveGroup();
     void move(geometry_msgs::msg::Pose targetPose);
-    void move2();
     void attachStone();
     void detachStone();
-    void createStone();
+    void createPiece(const std::string& object_id, int row, int col, const std::string& colorName);
+    std::tuple<float, float, float> getColorFromName(const std::string& colorName);
+    void removeObjectById(const std::string& object_id);
+
+
+
     geometry_msgs::msg::Pose getPose();
     std::pair<bool, double> checkPosition(const geometry_msgs::msg::Pose& current_local_pos, const geometry_msgs::msg::Pose& target_position);
     std::shared_ptr<moveit::planning_interface::MoveGroupInterface> move_group_interface;
@@ -44,6 +57,7 @@ private:
     // functions
     double euclideanDistance(double x1, double y1, double z1, double x2, double y2, double z2);
     
+    
     //Var Moveit
     const std::string PLANNING_GROUP = "ur_manipulator";
     
@@ -52,13 +66,24 @@ private:
     rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr chessBoardPub;
     rclcpp::TimerBase::SharedPtr timer;
 
+    // Subcriber
+    rclcpp::Subscription<checkers_msgs::msg::Board>::SharedPtr checkersBoardSub;
+    void checkers_board_callback(const checkers_msgs::msg::Board::SharedPtr msg);
+
 
     // Variables
-    moveit_msgs::msg::CollisionObject collision_object;
     std::vector<geometry_msgs::msg::Pose> pose_list;
     geometry_msgs::msg::Pose tool0_pose;
     geometry_msgs::msg::Pose target_pose;
     int target_pose_index = 0;
+    bool startProgram = true;
+    std::vector<std::pair<std::string, bool>> piecesInRviz;
+    moveit_visual_tools::MoveItVisualToolsPtr visual_tools_;
+    float square_size;  // Size of each square
+    float boardOffsetX;
+    float boardOffsetY;
+
+
 };
 
 

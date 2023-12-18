@@ -38,12 +38,14 @@ public:
     void mainLoop();
     void initMoveGroup();
     void move(geometry_msgs::msg::Pose targetPose);
-    void attachStone();
-    void detachStone();
-    void createPiece(const std::string& object_id, int row, int col, const std::string& colorName);
+    void attachPiece();
+    void detachPiece();
+    void createPiece(int row, int col);
+    void createFakePieceWithColor(const std::string& object_id, int row, int col, const std::string& colorName);
     std::tuple<float, float, float> getColorFromName(const std::string& colorName);
-    void removeObjectById(const std::string& object_id);
-
+    void removePiece();
+    void removeAllFakePieces();
+    int convertStringToInt(const std::string& stringID);
 
 
     geometry_msgs::msg::Pose getPose();
@@ -77,11 +79,13 @@ private:
     geometry_msgs::msg::Pose target_pose;
     int target_pose_index = 0;
     bool startProgram = true;
-    std::vector<std::pair<std::string, bool>> piecesInRviz;
+    std::unordered_map<int, bool> piecesInRviz;
     moveit_visual_tools::MoveItVisualToolsPtr visual_tools_;
     float square_size;  // Size of each square
     float boardOffsetX;
     float boardOffsetY;
+    visualization_msgs::msg::MarkerArray marker_array_fake_pieces;
+    moveit_msgs::msg::CollisionObject collision_object;
 
 
 };

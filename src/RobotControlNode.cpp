@@ -75,10 +75,10 @@ void RobotControlNode::mainLoop() {
     }
 
     if(target_pose_index == 0) {
-        attachStone();
+        attachPiece();
     }
     else {
-        detachStone();
+        detachPiece();
     }
 
     target_pose_index++;
@@ -157,15 +157,19 @@ void RobotControlNode::move(geometry_msgs::msg::Pose targetPose) {
 
 void RobotControlNode::checkers_board_callback(const checkers_msgs::msg::Board::SharedPtr msg)
 {
-    for (const auto& element : piecesInRviz) {
-        std::string objectID= element.first;
-        bool isOnTheBoard = element.second;
+    
+    // for (const auto& element : piecesInRviz) {
+    //     std::string objectID= element.first;
+    //     bool isOnTheBoard = element.second;
 
-        if(isOnTheBoard) {
-            removeObjectById(objectID);
-        }
-        // Do something with theString and theBool
-    }
+    //     if(isOnTheBoard) {
+    //         removeObjectById(objectID);
+    //     }
+    //     // Do something with theString and theBool
+    // }
+
+    removeAllFakePieces();
+
 
     for (const auto& piece : msg->pieces) {
         int row = piece.row;
@@ -175,8 +179,10 @@ void RobotControlNode::checkers_board_callback(const checkers_msgs::msg::Board::
 
         std::string pieceID = "piece" + std::to_string(row) + std::to_string(col);
         
-        createPiece(pieceID, row, col, color);
+        createFakePieceWithColor(pieceID, row, col, color);
     }
+
+    chessBoardPub->publish(marker_array_fake_pieces);
 
     if(startProgram) {
         // move(target_pose);
@@ -195,14 +201,11 @@ std::tuple<float, float, float> RobotControlNode::getColorFromName(const std::st
     return std::make_tuple(0.0f, 0.0f, 0.0f);
 }
 
-void RobotControlNode::createPiece(const std::string& object_id, int row, int col, const std::string& colorName) {
-    piecesInRviz.push_back(std::make_pair(object_id, true));
 
-    std::tuple<float, float, float> color = getColorFromName(colorName);
 
-    moveit_msgs::msg::CollisionObject collision_object;
+void RobotControlNode::createPiece(int row, int col) {
     collision_object.header.frame_id = move_group_interface->getPlanningFrame();
-    collision_object.id = object_id;
+    collision_object.id = "collisionObjectID";
     shape_msgs::msg::SolidPrimitive primitive;
 
 
@@ -227,40 +230,82 @@ void RobotControlNode::createPiece(const std::string& object_id, int row, int co
     collision_object.operation = collision_object.ADD;
     
 
-    // Set the color for the object (this part is optional and depends on your RViz setup)
-    moveit_msgs::msg::ObjectColor object_color;
-    object_color.id = object_id;
-    object_color.color.r = std::get<0>(color);
-    object_color.color.g = std::get<1>(color);
-    object_color.color.b = std::get<2>(color);
-    object_color.color.a = 1.0; // Alpha value for opacity (1.0 is fully opaque)
-
     // Add the collision object to the scene
     moveit::planning_interface::PlanningSceneInterface planning_scene_interface;
     planning_scene_interface.applyCollisionObject(collision_object);
 }
 
-void RobotControlNode::removeObjectById(const std::string& object_id) {
-    moveit_msgs::msg::CollisionObject remove_object;
-    remove_object.id = object_id;
-    remove_object.header.frame_id = move_group_interface->getPlanningFrame();
-    remove_object.operation = remove_object.REMOVE;
+void RobotControlNode::createFakePieceWithColor(const std::string& object_id, int row, int col, const std::string& colorName) {
+    int objectIDLong = convertStringToInt(object_id);
 
-    moveit::planning_interface::PlanningSceneInterface planning_scene_interface;
-    planning_scene_interface.applyCollisionObject(remove_object);
+    piecesInRviz[objectIDLong] = true;
+
+    std::tuple<float, float, float> color = getColorFromName(colorName);
+    
+    visualization_msgs::msg::Marker fakePiece;
+    fakePiece.header.frame_id = move_group_interface->getPlanningFrame();
+    fakePiece.id = objectIDLong;
+
+    fakePiece.type = visualization_msgs::msg::Marker::CYLINDER;
+    fakePiece.action = visualization_msgs::msg::Marker::ADD;
+
+    fakePiece.pose.position.x = (row * square_size) + boardOffsetX;
+    fakePiece.pose.position.y = (col * square_size) + boardOffsetY;
+    fakePiece.pose.position.z = 0.0075;
+    fakePiece.pose.orientation.w = 1.0;
+
+    fakePiece.scale.x = 0.028;
+    fakePiece.scale.y = 0.028;
+    fakePiece.scale.z = 0.005;
+
+    fakePiece.color.r = std::get<0>(color);
+    fakePiece.color.g = std::get<1>(color);
+    fakePiece.color.b = std::get<2>(color);
+    fakePiece.color.a = 1.0;  // Alpha
+
+    marker_array_fake_pieces.markers.push_back(fakePiece);
+
+    
 }
 
-void RobotControlNode::attachStone() {
-    moveit_msgs::msg::CollisionObject collision_object;
-    collision_object.header.frame_id = move_group_interface->getPlanningFrame();
-    collision_object.id = "piece01";
+int RobotControlNode::convertStringToInt(const std::string& stringID){
+    long long concatenatedNumber = 0;
+
+    for (char c : stringID) {
+        concatenatedNumber = concatenatedNumber * 1000 + static_cast<int>(c);
+    }
+
+    return concatenatedNumber;
+}
+
+void RobotControlNode::removeAllFakePieces() {
+    for (auto& marker : marker_array_fake_pieces.markers) {
+        int markerID = marker.id;
+        if (piecesInRviz.find(markerID) != piecesInRviz.end()) {
+            bool isOnTheBoard = piecesInRviz[markerID];
+            if(isOnTheBoard) {
+                marker.action = visualization_msgs::msg::Marker::DELETE;
+            }
+        }
+    }
+
+    chessBoardPub->publish(marker_array_fake_pieces);
+    piecesInRviz.clear();
+    marker_array_fake_pieces.markers.clear();
+}
+
+void RobotControlNode::removePiece() {
+    collision_object.operation = collision_object.REMOVE;
+
+    moveit::planning_interface::PlanningSceneInterface planning_scene_interface;
+    planning_scene_interface.applyCollisionObject(collision_object);
+}
+
+void RobotControlNode::attachPiece() {
     move_group_interface->attachObject(collision_object.id, "tool0"); 
 }
 
-void RobotControlNode::detachStone() {
-    moveit_msgs::msg::CollisionObject collision_object;
-    collision_object.header.frame_id = move_group_interface->getPlanningFrame();
-    collision_object.id = "piece01";
+void RobotControlNode::detachPiece() {
     move_group_interface->detachObject(collision_object.id); 
 }
 

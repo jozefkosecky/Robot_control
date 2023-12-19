@@ -27,7 +27,7 @@ find_package(rviz_visual_tools REQUIRED)
 include_directories(include)
 
 # Declare a C++ executable
-add_executable(robot_control_node src/RobotControlMain.cpp src/RobotControlNode.cpp)
+add_executable(robot_control_node src/RobotControlMain.cpp src/RobotControlNode.cpp src/Mission.cpp)
 # Specify libraries to link a library or executable target against
 ament_target_dependencies(robot_control_node 
   moveit_core

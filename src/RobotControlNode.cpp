@@ -12,6 +12,9 @@ RobotControlNode::RobotControlNode() : Node("robot_control_node") {
     checkersBoardSub = this->create_subscription<checkers_msgs::msg::Board>(
         "board_topic", 10, std::bind(&RobotControlNode::checkers_board_callback, this, std::placeholders::_1));
 
+    checkersMoveSub = this->create_subscription<checkers_msgs::msg::Move>(
+        "move_topic", 10, std::bind(&RobotControlNode::checkers_move_callback, this, std::placeholders::_1));
+
     std::this_thread::sleep_for(std::chrono::seconds(1));
     
 
@@ -19,36 +22,34 @@ RobotControlNode::RobotControlNode() : Node("robot_control_node") {
     boardOffsetX = 0.475;
     boardOffsetY = -(square_size * 4)+ (square_size / 2);
 
-    geometry_msgs::msg::Pose target_pose1;
-    // target_pose1.orientation.x = 0.5;
-    // target_pose1.orientation.y = 0.5;
-    // target_pose1.orientation.z = -0.5;
-    // target_pose1.orientation.w = 0.5;
+    // geometry_msgs::msg::Pose target_pose1;
+    // // target_pose1.orientation.x = 0.5;
+    // // target_pose1.orientation.y = 0.5;
+    // // target_pose1.orientation.z = -0.5;
+    // // target_pose1.orientation.w = 0.5;
 
-    target_pose1.orientation.w = 0.0;
-    target_pose1.orientation.x = 1.0;
-    target_pose1.orientation.y = 0.0; //-5.563795639318414e-06
-    target_pose1.orientation.z = 0.0; //-0.000838900392409414
-    target_pose1.position.x = 0.4765383303165436;
-    target_pose1.position.y = -0.16665436327457428;
-    target_pose1.position.z = 0.04123930260539055;
+    // target_pose1.orientation.w = 0.0;
+    // target_pose1.orientation.x = 1.0;
+    // target_pose1.orientation.y = 0.0; //-5.563795639318414e-06
+    // target_pose1.orientation.z = 0.0; //-0.000838900392409414
+    // target_pose1.position.x = 0.4765383303165436;
+    // target_pose1.position.y = -0.16665436327457428;
+    // target_pose1.position.z = 0.04123930260539055;
 
-    // Second Pose
-    geometry_msgs::msg::Pose target_pose2;
-    target_pose2.orientation.x = 0.0;
-    target_pose2.orientation.y = 1.0;
-    target_pose2.orientation.z = 0.0;
-    target_pose2.orientation.w = 0.0;
-    target_pose2.position.x = 0.4765383303165436;
-    target_pose2.position.y = -0.16665436327457428 + (square_size*7);
-    target_pose2.position.z = 0.04123930260539055;
+    // // Second Pose
+    // geometry_msgs::msg::Pose target_pose2;
+    // target_pose2.orientation.x = 0.0;
+    // target_pose2.orientation.y = 1.0;
+    // target_pose2.orientation.z = 0.0;
+    // target_pose2.orientation.w = 0.0;
+    // target_pose2.position.x = 0.4765383303165436;
+    // target_pose2.position.y = -0.16665436327457428 + (square_size*7);
+    // target_pose2.position.z = 0.04123930260539055;
 
-    pose_list.push_back(target_pose1);
-    pose_list.push_back(target_pose2);
-    target_pose = pose_list[target_pose_index];
+    // pose_list.push_back(target_pose1);
+    // pose_list.push_back(target_pose2);
+    // target_pose = pose_list[target_pose_index];
 
-
-    
 }
 
 void RobotControlNode::initMoveGroup() {
@@ -59,10 +60,21 @@ void RobotControlNode::initMoveGroup() {
 
     publishCheckerboard();
     
+    // createPiece(0, 0);
+    // attachPiece();
+    // usleep(2000000);
+    // detachPiece();
+    // removePiece();
+
+
     // move(target_pose);
 }
 
 void RobotControlNode::mainLoop() {
+    if((target_pose_index >= 0 && static_cast<std::size_t>(target_pose_index) >= targetPositions.size()) || doingTask) {
+        return;
+    }
+
     tool0_pose = getPose();
 
     auto result = checkPosition(tool0_pose, target_pose);
@@ -74,23 +86,65 @@ void RobotControlNode::mainLoop() {
         return;
     }
 
-    if(target_pose_index == 0) {
+    
+    trajectory_pose_index++;
+    if(trajectory_pose_index >= 0 && static_cast<std::size_t>(trajectory_pose_index) < trajectory_list.size()) {
+        // RCLCPP_WARN(node->get_logger(), "\n\nDalsi bod na trajektori.\n\n");
+        std::cerr << "\n\nDalsi bod na trajektori.\n" << std::endl;
+        target_pose = trajectory_list[trajectory_pose_index];
+        usleep(500000);
+        move(target_pose);
+        return;
+    }
+
+    Mission mission = targetPositions[target_pose_index];
+    if(mission.task != Task::NONE) {
+        makeTask(mission);
+    }
+    else {
+        target_pose_index++;
+
+        if(target_pose_index >= 0 && static_cast<std::size_t>(target_pose_index) < targetPositions.size()) {
+            // RCLCPP_ERROR(node->get_logger(), "\n\nDalsia misia.\n\n");
+            std::cerr << "\n\nDalsia misia.\n" << std::endl;
+
+            trajectory_list = getPoseList(targetPositions[target_pose_index]);
+
+            target_pose = trajectory_list[trajectory_pose_index];
+            usleep(500000);
+            move(target_pose);
+        }
+    }
+   
+    // usleep(2000000); // Sleep for 2000000 microseconds (2 seconds)
+}
+
+void RobotControlNode::makeTask(Mission mission) {
+    doingTask = true;
+
+    Task task = mission.task;
+    int row = mission.row;
+    int col = mission.col;
+    std::string color = "white";
+
+    std::string pieceID = "piece" + std::to_string(row) + std::to_string(col);
+
+    if(task == Task::ATTACH) {
+        removeFakePiece(pieceID);
+
+        createPiece(row, col);
         attachPiece();
     }
     else {
         detachPiece();
+        removePiece();
+        createFakePieceWithColor(pieceID, row, col, color);
+        chessBoardPub->publish(marker_array_fake_pieces);
     }
 
-    target_pose_index++;
-    if(target_pose_index == 2) {
-        target_pose_index = 0;
-    }
- 
-    target_pose = pose_list[target_pose_index];
-    move(target_pose);
-
+    targetPositions[target_pose_index].task = Task::NONE;
+    doingTask = false;
 }
-
 
 std::pair<bool, double> RobotControlNode::checkPosition(const geometry_msgs::msg::Pose& current_local_pos, const geometry_msgs::msg::Pose& target_position) {
     double threshold = 0.05;
@@ -154,6 +208,75 @@ void RobotControlNode::move(geometry_msgs::msg::Pose targetPose) {
         RCLCPP_ERROR(this->get_logger(), "Planning failed!");
     }
 }
+
+void RobotControlNode::checkers_move_callback(const checkers_msgs::msg::Move::SharedPtr msg) {
+    targetPositions.clear();
+    target_pose_index = 0;
+    trajectory_pose_index = 0;
+
+    // First Mission: Attach at the start position
+    int startRow = msg->piece_for_moving.row;
+    int startCol = msg->piece_for_moving.col;
+    targetPositions.push_back(Mission(startRow, startCol, Task::ATTACH));
+
+    // Second Mission: Detach at the target position
+    int targetRow = msg->target_row;
+    int targetCol = msg->target_col;
+    targetPositions.push_back(Mission(targetRow, targetCol, Task::DETACH));
+
+    // Additional Missions for removed pieces
+    for (const auto& piece : msg->removed_pieces) {
+        int row = piece.row;
+        int col = piece.col;
+        targetPositions.push_back(Mission(row, col, Task::ATTACH));
+    }
+
+    trajectory_list = getPoseList(targetPositions[target_pose_index]);
+    target_pose = trajectory_list[trajectory_pose_index];
+    move(target_pose);
+}
+
+std::vector<geometry_msgs::msg::Pose> RobotControlNode::getPoseList(Mission mission) {
+    std::vector<geometry_msgs::msg::Pose> poses;
+
+    // float posX = (mission.row * square_size) + boardOffsetX + (square_size/2);
+    // float posY = (mission.col * square_size) + boardOffsetY + (square_size/2);
+
+    float posX = (mission.row * square_size) + boardOffsetX;
+    float posY = (mission.col * square_size) + boardOffsetY;
+    // geometry_msgs::msg::Pose pose1;
+    // pose1.orientation.x = 0.0;
+    // pose1.orientation.y = 1.0;
+    // pose1.orientation.z = 0.0;
+    // pose1.orientation.w = 0.0;
+    // pose1.position.x = posX;
+    // pose1.position.y = posY;
+    // pose1.position.z = 0.04123930260539055 + 0.30;
+    // poses.push_back(pose1);
+
+    geometry_msgs::msg::Pose pose2;
+    pose2.orientation.x = 0.0;
+    pose2.orientation.y = 1.0;
+    pose2.orientation.z = 0.0;
+    pose2.orientation.w = 0.0;
+    pose2.position.x = posX;
+    pose2.position.y = posY;
+    pose2.position.z = 0.04123930260539055;
+    poses.push_back(pose2);
+
+    // geometry_msgs::msg::Pose pose3;
+    // pose3.orientation.x = 0.0;
+    // pose3.orientation.y = 1.0;
+    // pose3.orientation.z = 0.0;
+    // pose3.orientation.w = 0.0;
+    // pose3.position.x = posX;
+    // pose3.position.y = posY;
+    // pose3.position.z = 0.042 + 0.30;
+    // poses.push_back(pose3);
+
+    return poses;
+}
+
 
 void RobotControlNode::checkers_board_callback(const checkers_msgs::msg::Board::SharedPtr msg)
 {

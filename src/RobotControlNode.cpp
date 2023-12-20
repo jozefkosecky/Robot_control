@@ -49,6 +49,7 @@ RobotControlNode::RobotControlNode() : Node("robot_control_node") {
     // pose_list.push_back(target_pose1);
     // pose_list.push_back(target_pose2);
     // target_pose = pose_list[target_pose_index];
+    
 
 }
 
@@ -67,11 +68,24 @@ void RobotControlNode::initMoveGroup() {
     // removePiece();
 
 
+    // targetPositions.push_back(Mission(0, 0, Task::ATTACH));
+    // targetPositions.push_back(Mission(0, 5, Task::DETACH));
+
+    // trajectory_list = getPoseList(targetPositions[target_pose_index]);
+    // target_pose = trajectory_list[trajectory_pose_index].first;
+    // move(target_pose);
+
     // move(target_pose);
 }
 
 void RobotControlNode::mainLoop() {
     if((target_pose_index >= 0 && static_cast<std::size_t>(target_pose_index) >= targetPositions.size()) || doingTask) {
+        std::cout << "Return FIRST"<< std::endl;
+        std::cout << "Size: " << targetPositions.size() << std::endl;
+        std::cout << "target_pose_index: " << target_pose_index << std::endl;
+        std::cout << "doingTask: " << doingTask << std::endl;
+        std::cout << "-------------------------------" << std::endl;
+        
         return;
     }
 
@@ -82,38 +96,55 @@ void RobotControlNode::mainLoop() {
     // double distance = result.second;
 
     if(isCloseEnough == false) {
-        // move(target_pose);
+        std::cout << "Return SECOND" << std::endl;
+        std::cout << "-------------------------------" << std::endl;
+        attempts++;
+
+        if(attempts == 3) {
+            move(target_pose);
+            attempts = 0;
+        }
         return;
     }
 
     
-    trajectory_pose_index++;
-    if(trajectory_pose_index >= 0 && static_cast<std::size_t>(trajectory_pose_index) < trajectory_list.size()) {
-        // RCLCPP_WARN(node->get_logger(), "\n\nDalsi bod na trajektori.\n\n");
-        std::cerr << "\n\nDalsi bod na trajektori.\n" << std::endl;
-        target_pose = trajectory_list[trajectory_pose_index];
-        usleep(500000);
+    
+    if(trajectory_pose_index >= 0 && static_cast<std::size_t>(trajectory_pose_index + 1) < trajectory_list.size()) {
+        RCLCPP_WARN(shared_from_this()->get_logger(), "\n\nDalsi bod na trajektori.");
+        std::cout << "Size: " << trajectory_list.size() << std::endl;
+        std::cout << "trajectory_pose_index: " << trajectory_pose_index << std::endl;
+    
+        // Taking task at the end of the move.
+        Task task = trajectory_list[trajectory_pose_index].second;
+        trajectory_pose_index++;
+        if(task != Task::NONE) {
+            std::cout << "Robim TASK" << std::endl;
+            Mission mission = targetPositions[target_pose_index];
+            makeTask(mission);  
+            usleep(500000);
+        }
+        
+        std::cout << "trajectory_pose_index: " << trajectory_pose_index << std::endl;
+        std::cout << "-------------------------------" << std::endl;
+        target_pose = trajectory_list[trajectory_pose_index].first;
         move(target_pose);
         return;
     }
 
-    Mission mission = targetPositions[target_pose_index];
-    if(mission.task != Task::NONE) {
-        makeTask(mission);
-    }
-    else {
+    
+    if(target_pose_index >= 0 && static_cast<std::size_t>(target_pose_index + 1) < targetPositions.size()) {
         target_pose_index++;
 
-        if(target_pose_index >= 0 && static_cast<std::size_t>(target_pose_index) < targetPositions.size()) {
-            // RCLCPP_ERROR(node->get_logger(), "\n\nDalsia misia.\n\n");
-            std::cerr << "\n\nDalsia misia.\n" << std::endl;
+        RCLCPP_ERROR(shared_from_this()->get_logger(), "\n\nDalsia misia.");
+        std::cout << "Size: " << targetPositions.size() << std::endl;
+        std::cout << "target_pose_index: " << target_pose_index << std::endl;
+        std::cout << "-------------------------------" << std::endl;;
 
-            trajectory_list = getPoseList(targetPositions[target_pose_index]);
+        trajectory_list = getPoseList(targetPositions[target_pose_index]);
 
-            target_pose = trajectory_list[trajectory_pose_index];
-            usleep(500000);
-            move(target_pose);
-        }
+        target_pose = trajectory_list[trajectory_pose_index].first;
+        usleep(500000);
+        move(target_pose);
     }
    
     // usleep(2000000); // Sleep for 2000000 microseconds (2 seconds)
@@ -125,7 +156,7 @@ void RobotControlNode::makeTask(Mission mission) {
     Task task = mission.task;
     int row = mission.row;
     int col = mission.col;
-    std::string color = "white";
+    std::string color = mission.color;
 
     std::string pieceID = "piece" + std::to_string(row) + std::to_string(col);
 
@@ -163,10 +194,12 @@ std::pair<bool, double> RobotControlNode::checkPosition(const geometry_msgs::msg
     double distance = euclideanDistance(current_x, current_y, current_z, target_x, target_y, target_z);
 
     if (distance < threshold) {
-        std::cout << "We are close enough to the target!" << std::endl;
+        RCLCPP_DEBUG(shared_from_this()->get_logger(), "\n\nWe are close enough to the target!\n\n");
+        // std::cout << "We are close enough to the target!" << std::endl;
         return std::make_pair(true, distance);
     } else {
-        std::cout << "Still on the way to the target." << std::endl;
+        RCLCPP_DEBUG(shared_from_this()->get_logger(), "\n\nStill on the way to the target.\n\n");
+        // std::cout << "Still on the way to the target." << std::endl;
         return std::make_pair(false, distance);
     }
 }
@@ -212,47 +245,52 @@ void RobotControlNode::move(geometry_msgs::msg::Pose targetPose) {
 void RobotControlNode::checkers_move_callback(const checkers_msgs::msg::Move::SharedPtr msg) {
     targetPositions.clear();
     target_pose_index = 0;
-    trajectory_pose_index = 0;
+    
 
     // First Mission: Attach at the start position
     int startRow = msg->piece_for_moving.row;
     int startCol = msg->piece_for_moving.col;
-    targetPositions.push_back(Mission(startRow, startCol, Task::ATTACH));
+    targetPositions.push_back(Mission(startRow, startCol, whiteColorString, Task::ATTACH));
 
     // Second Mission: Detach at the target position
     int targetRow = msg->target_row;
     int targetCol = msg->target_col;
-    targetPositions.push_back(Mission(targetRow, targetCol, Task::DETACH));
+    targetPositions.push_back(Mission(targetRow, targetCol, whiteColorString, Task::DETACH));
 
     // Additional Missions for removed pieces
     for (const auto& piece : msg->removed_pieces) {
         int row = piece.row;
         int col = piece.col;
-        targetPositions.push_back(Mission(row, col, Task::ATTACH));
+        targetPositions.push_back(Mission(row, col, redColorString, Task::ATTACH));
+
+        targetPositions.push_back(Mission(0, -1, redColorString, Task::DETACH));
     }
 
     trajectory_list = getPoseList(targetPositions[target_pose_index]);
-    target_pose = trajectory_list[trajectory_pose_index];
+    target_pose = trajectory_list[trajectory_pose_index].first;
     move(target_pose);
 }
 
-std::vector<geometry_msgs::msg::Pose> RobotControlNode::getPoseList(Mission mission) {
-    std::vector<geometry_msgs::msg::Pose> poses;
+std::vector<std::pair<geometry_msgs::msg::Pose, Task>> RobotControlNode::getPoseList(Mission mission) {
+    trajectory_pose_index = 0;
+    std::vector<std::pair<geometry_msgs::msg::Pose, Task>> poses;
 
+    
     // float posX = (mission.row * square_size) + boardOffsetX + (square_size/2);
     // float posY = (mission.col * square_size) + boardOffsetY + (square_size/2);
 
     float posX = (mission.row * square_size) + boardOffsetX;
     float posY = (mission.col * square_size) + boardOffsetY;
-    // geometry_msgs::msg::Pose pose1;
-    // pose1.orientation.x = 0.0;
-    // pose1.orientation.y = 1.0;
-    // pose1.orientation.z = 0.0;
-    // pose1.orientation.w = 0.0;
-    // pose1.position.x = posX;
-    // pose1.position.y = posY;
-    // pose1.position.z = 0.04123930260539055 + 0.30;
-    // poses.push_back(pose1);
+    geometry_msgs::msg::Pose pose1;
+    pose1.orientation.x = 0.0;
+    pose1.orientation.y = 1.0;
+    pose1.orientation.z = 0.0;
+    pose1.orientation.w = 0.0;
+    pose1.position.x = posX;
+    pose1.position.y = posY;
+    pose1.position.z = 0.04123930260539055 + 0.30;
+    poses.push_back(std::make_pair(pose1, Task::NONE));
+    
 
     geometry_msgs::msg::Pose pose2;
     pose2.orientation.x = 0.0;
@@ -262,17 +300,17 @@ std::vector<geometry_msgs::msg::Pose> RobotControlNode::getPoseList(Mission miss
     pose2.position.x = posX;
     pose2.position.y = posY;
     pose2.position.z = 0.04123930260539055;
-    poses.push_back(pose2);
+    poses.push_back(std::make_pair(pose2, mission.task));
 
-    // geometry_msgs::msg::Pose pose3;
-    // pose3.orientation.x = 0.0;
-    // pose3.orientation.y = 1.0;
-    // pose3.orientation.z = 0.0;
-    // pose3.orientation.w = 0.0;
-    // pose3.position.x = posX;
-    // pose3.position.y = posY;
-    // pose3.position.z = 0.042 + 0.30;
-    // poses.push_back(pose3);
+    geometry_msgs::msg::Pose pose3;
+    pose3.orientation.x = 0.0;
+    pose3.orientation.y = 1.0;
+    pose3.orientation.z = 0.0;
+    pose3.orientation.w = 0.0;
+    pose3.position.x = posX;
+    pose3.position.y = posY;
+    pose3.position.z = 0.042 + 0.30;
+    poses.push_back(std::make_pair(pose3, Task::NONE));
 
     return poses;
 }
@@ -419,6 +457,7 @@ void RobotControlNode::removeFakePiece(const std::string& object_id) {
 }
 
 void RobotControlNode::createPiece(int row, int col) {
+    collision_object = moveit_msgs::msg::CollisionObject();
     collision_object.header.frame_id = move_group_interface->getPlanningFrame();
     collision_object.id = "collisionObjectID";
     shape_msgs::msg::SolidPrimitive primitive;

@@ -2,6 +2,7 @@
 #define MISSION_HPP
 
 #include <vector>
+#include <string>
 #include "checkers_msgs/msg/piece.hpp" 
 
 enum class Task {
@@ -13,10 +14,11 @@ enum class Task {
 class Mission {
 public:
     int row, col;
+    std::string color; 
     Task task;
 
     // Constructor
-    Mission(int row, int col, Task task);
+    Mission(int row, int col, const std::string& color, Task task);
 };
 
 #endif // MISSION_HPP

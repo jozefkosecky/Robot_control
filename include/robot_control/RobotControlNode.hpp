@@ -54,7 +54,7 @@ public:
     void removeAllFakePieces();
     void removeFakePiece(const std::string& object_id);
     int convertStringToInt(const std::string& stringID);
-    std::vector<geometry_msgs::msg::Pose> getPoseList(Mission mission);
+    std::vector<std::pair<geometry_msgs::msg::Pose, Task>>  getPoseList(Mission mission);
     void makeTask(Mission mission);
 
 
@@ -87,7 +87,7 @@ private:
 
 
     // Variables
-    std::vector<geometry_msgs::msg::Pose> trajectory_list;
+    std::vector<std::pair<geometry_msgs::msg::Pose, Task>> trajectory_list;
     geometry_msgs::msg::Pose tool0_pose;
     geometry_msgs::msg::Pose target_pose;
     int target_pose_index = 0;
@@ -102,7 +102,9 @@ private:
     moveit_msgs::msg::CollisionObject collision_object;
     std::vector<Mission> targetPositions;
     bool doingTask = false;
-
+    int attempts = 0;
+    std::string whiteColorString = "white";
+    std::string redColorString = "red";
 };
 
 

@@ -68,6 +68,7 @@ private:
 
     // functions
     double euclideanDistance(double x1, double y1, double z1, double x2, double y2, double z2);
+    std::pair<int, int> rotate90DegreesCounterClockwise(int x, int y);
     
     
     //Var Moveit

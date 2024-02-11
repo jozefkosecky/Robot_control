@@ -19,8 +19,11 @@ RobotControlNode::RobotControlNode() : Node("robot_control_node") {
     
 
     square_size = 0.047;  // Size of each square
-    boardOffsetX = 0.475;
-    boardOffsetY = -(square_size * 4)+ (square_size / 2);
+
+    // DON'T FORGET. BOAR IS ROTATED ABOUT 90 degrees
+    boardOffsetX = (square_size * 12);
+    boardOffsetY = 0.3;
+
 
     // geometry_msgs::msg::Pose target_pose1;
     // // target_pose1.orientation.x = 0.5;
@@ -56,7 +59,7 @@ RobotControlNode::RobotControlNode() : Node("robot_control_node") {
 void RobotControlNode::initMoveGroup() {
     using moveit::planning_interface::MoveGroupInterface;
     move_group_interface = std::make_shared<moveit::planning_interface::MoveGroupInterface>(shared_from_this(), "ur_manipulator");
-    // move_group_interface->setEndEffectorLink("tool0");
+    move_group_interface->setEndEffectorLink("tool0");
     move_group_interface->startStateMonitor();
 
     publishCheckerboard();
@@ -248,22 +251,22 @@ void RobotControlNode::checkers_move_callback(const checkers_msgs::msg::Move::Sh
     
 
     // First Mission: Attach at the start position
-    int startRow = msg->piece_for_moving.row;
-    int startCol = msg->piece_for_moving.col;
-    targetPositions.push_back(Mission(startRow, startCol, whiteColorString, Task::ATTACH));
+    auto [startRow, startCol] = rotate90DegreesCounterClockwise(msg->piece_for_moving.row, msg->piece_for_moving.col);
+
+    targetPositions.push_back(Mission(startRow, startCol, msg->piece_for_moving.color, Task::ATTACH));
 
     // Second Mission: Detach at the target position
-    int targetRow = msg->target_row;
-    int targetCol = msg->target_col;
-    targetPositions.push_back(Mission(targetRow, targetCol, whiteColorString, Task::DETACH));
+    auto [targetRow, targetCol] = rotate90DegreesCounterClockwise(msg->target_row, msg->target_col);
+
+    targetPositions.push_back(Mission(targetRow, targetCol, msg->piece_for_moving.color, Task::DETACH));
 
     // Additional Missions for removed pieces
     for (const auto& piece : msg->removed_pieces) {
-        int row = piece.row;
-        int col = piece.col;
-        targetPositions.push_back(Mission(row, col, redColorString, Task::ATTACH));
+        auto [row, col] = rotate90DegreesCounterClockwise(piece.row, piece.col);
 
-        targetPositions.push_back(Mission(0, -1, redColorString, Task::DETACH));
+        targetPositions.push_back(Mission(row, col, piece.color, Task::ATTACH));
+
+        targetPositions.push_back(Mission(0, -1, piece.color, Task::DETACH));
     }
 
     trajectory_list = getPoseList(targetPositions[target_pose_index]);
@@ -279,8 +282,22 @@ std::vector<std::pair<geometry_msgs::msg::Pose, Task>> RobotControlNode::getPose
     // float posX = (mission.row * square_size) + boardOffsetX + (square_size/2);
     // float posY = (mission.col * square_size) + boardOffsetY + (square_size/2);
 
+    std::cout << "-------------------------------" << std::endl;
+    std::cout << "mission.row: " << mission.row << std::endl;
+    std::cout << "mission.col: " << mission.col << std::endl;
+    std::cout << "square_size: " << square_size << std::endl;
+    std::cout << "boardOffsetX: " << boardOffsetX << std::endl;
+    std::cout << "boardOffsetY: " << boardOffsetY << std::endl;
+    std::cout << "-------------------------------" << std::endl;
+
     float posX = (mission.row * square_size) + boardOffsetX;
     float posY = (mission.col * square_size) + boardOffsetY;
+
+    std::cout << "-------------------------------" << std::endl;
+    std::cout << "posX: " << posX << std::endl;
+    std::cout << "posY: " << posY << std::endl;
+    std::cout << "-------------------------------" << std::endl;
+
     geometry_msgs::msg::Pose pose1;
     pose1.orientation.x = 0.0;
     pose1.orientation.y = 1.0;
@@ -321,8 +338,9 @@ void RobotControlNode::checkers_board_callback(const checkers_msgs::msg::Board::
     removeAllFakePieces();
 
     for (const auto& piece : msg->pieces) {
-        int row = piece.row;
-        int col = piece.col;
+
+        auto [row, col] = rotate90DegreesCounterClockwise(piece.row, piece.col);
+        
         std::string color = piece.color;
         // bool isKing = piece.king;
 
@@ -362,7 +380,8 @@ void RobotControlNode::createFakePieceWithColor(const std::string& object_id, in
     std::tuple<float, float, float> color = getColorFromName(colorName);
     
     visualization_msgs::msg::Marker fakePiece;
-    fakePiece.header.frame_id = move_group_interface->getPlanningFrame();
+    // fakePiece.header.frame_id = move_group_interface->getPlanningFrame();
+    fakePiece.header.frame_id = "base_link";
     fakePiece.id = objectIDLong;
 
     fakePiece.type = visualization_msgs::msg::Marker::CYLINDER;
@@ -518,14 +537,17 @@ void RobotControlNode::publishCheckerboard()
         {
             for (int col = 0; col < cols; ++col)
             {
+
+                auto [rotatedRow, rotatedCol] = rotate90DegreesCounterClockwise(row, col);
+
                 // Add square
                 visualization_msgs::msg::Marker square_marker;
                 square_marker.header.frame_id = move_group_interface->getPlanningFrame();
                 square_marker.type = visualization_msgs::msg::Marker::CUBE;
                 square_marker.action = visualization_msgs::msg::Marker::ADD;
 
-                square_marker.pose.position.x = (row * square_size) + boardOffsetX;
-                square_marker.pose.position.y = (col * square_size) + boardOffsetY;
+                square_marker.pose.position.x = (rotatedRow * square_size) + boardOffsetX;
+                square_marker.pose.position.y = (rotatedCol * square_size) + boardOffsetY;
                 square_marker.pose.position.z = 0.0;
                 square_marker.pose.orientation.w = 1.0;
 
@@ -533,7 +555,13 @@ void RobotControlNode::publishCheckerboard()
                 square_marker.scale.y = square_size;
                 square_marker.scale.z = 0.01;
 
-                if ((row + col) % 2 == 0)
+                if ((row + col) == 0)
+                {
+                    square_marker.color.r = 0.0;
+                    square_marker.color.g = 1.0;
+                    square_marker.color.b = 0.0;
+                }
+                else if ((rotatedRow + rotatedCol) % 2 == 0)
                 {
                     square_marker.color.r = 1.0;
                     square_marker.color.g = 1.0;
@@ -547,11 +575,16 @@ void RobotControlNode::publishCheckerboard()
                 }
 
                 square_marker.color.a = 1.0;  // Alpha
-                square_marker.id = row * cols + col;
+                square_marker.id = rotatedRow * cols + rotatedCol;
 
                 marker_array.markers.push_back(square_marker);
             }
         }
 
         chessBoardPub->publish(marker_array);
+}
+
+
+std::pair<int, int> RobotControlNode::rotate90DegreesCounterClockwise(int x, int y) {
+    return {-y, x};
 }
